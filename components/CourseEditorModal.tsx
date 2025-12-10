@@ -30,7 +30,7 @@ const CourseEditorModal: React.FC<CourseEditorModalProps> = ({ isOpen, onClose, 
     setErrors({});
     if (initialData) {
       setFormData(initialData);
-      setTagsInput(initialData.tags.join(', '));
+      setTagsInput(initialData.tags ? initialData.tags.join(', ') : '');
     } else {
       setFormData({
         id: `custom-${Date.now()}`,
@@ -53,20 +53,26 @@ const CourseEditorModal: React.FC<CourseEditorModalProps> = ({ isOpen, onClose, 
 
   const validate = (): boolean => {
     const newErrors: {[key: string]: string} = {};
-    const urlPattern = /^(https?:\/\/)/i;
+    const urlPattern = /^https?:\/\/.+/i;
 
     // Validate Price
-    if (formData.price === undefined || isNaN(formData.price) || formData.price < 0) {
-      newErrors.price = 'Price must be a valid non-negative number';
+    if (formData.price === undefined || formData.price === null || isNaN(formData.price)) {
+      newErrors.price = 'Price is required';
+    } else if (formData.price < 0) {
+      newErrors.price = 'Price cannot be negative';
     }
 
     // Validate Students
-    if (formData.students === undefined || isNaN(formData.students) || formData.students < 0) {
-      newErrors.students = 'Students count must be a valid non-negative number';
+    if (formData.students === undefined || formData.students === null || isNaN(formData.students)) {
+       newErrors.students = 'Students count is required';
+    } else if (formData.students < 0) {
+      newErrors.students = 'Students count cannot be negative';
     }
 
     // Validate Image URL (Required)
-    if (!formData.image || !urlPattern.test(formData.image)) {
+    if (!formData.image) {
+      newErrors.image = 'Image URL is required';
+    } else if (!urlPattern.test(formData.image)) {
       newErrors.image = 'Invalid URL (must start with http:// or https://)';
     }
 
@@ -95,6 +101,12 @@ const CourseEditorModal: React.FC<CourseEditorModalProps> = ({ isOpen, onClose, 
     onClose();
   };
 
+  // Helper to safely get number value for input
+  const getNumberValue = (val: number | undefined) => {
+     if (val === undefined || isNaN(val)) return '';
+     return val;
+  };
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div 
@@ -116,8 +128,13 @@ const CourseEditorModal: React.FC<CourseEditorModalProps> = ({ isOpen, onClose, 
           {/* Image Preview */}
           <div>
             <div className={`relative h-48 w-full rounded-lg overflow-hidden bg-gray-900 border group ${errors.image ? 'border-red-500' : 'border-gray-700'}`}>
-              <img src={formData.image} alt="Preview" className="w-full h-full object-cover opacity-60" />
-              <div className="absolute inset-0 flex items-center justify-center">
+              <img 
+                src={formData.image || ''} 
+                alt="Preview" 
+                className="w-full h-full object-cover opacity-60" 
+                onError={(e) => (e.currentTarget.src = 'https://via.placeholder.com/800x600?text=Invalid+Image+URL')}
+              />
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <ImageIcon className="w-8 h-8 text-gray-500" />
               </div>
               <input 
@@ -127,7 +144,7 @@ const CourseEditorModal: React.FC<CourseEditorModalProps> = ({ isOpen, onClose, 
                   setFormData({...formData, image: e.target.value});
                   if(errors.image) setErrors({...errors, image: ''});
                 }}
-                placeholder="Image URL"
+                placeholder="Image URL (https://...)"
                 className="absolute bottom-4 left-4 right-4 bg-black/70 border border-gray-600 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-gold-500"
               />
             </div>
@@ -140,7 +157,7 @@ const CourseEditorModal: React.FC<CourseEditorModalProps> = ({ isOpen, onClose, 
               <input 
                 required
                 type="text" 
-                value={formData.title}
+                value={formData.title || ''}
                 onChange={e => setFormData({...formData, title: e.target.value})}
                 className="w-full bg-gray-900 border border-gray-700 rounded px-4 py-2 text-white focus:border-gold-500 outline-none"
               />
@@ -151,7 +168,7 @@ const CourseEditorModal: React.FC<CourseEditorModalProps> = ({ isOpen, onClose, 
               <textarea 
                 required
                 rows={3}
-                value={formData.description}
+                value={formData.description || ''}
                 onChange={e => setFormData({...formData, description: e.target.value})}
                 className="w-full bg-gray-900 border border-gray-700 rounded px-4 py-2 text-white focus:border-gold-500 outline-none"
               />
@@ -189,10 +206,10 @@ const CourseEditorModal: React.FC<CourseEditorModalProps> = ({ isOpen, onClose, 
                 type="number" 
                 min="0"
                 step="0.01"
-                value={formData.price !== undefined ? formData.price : ''}
+                value={getNumberValue(formData.price)}
                 onChange={e => {
-                  const val = e.target.value === '' ? NaN : parseFloat(e.target.value);
-                  setFormData({...formData, price: val});
+                  const val = parseFloat(e.target.value);
+                  setFormData({...formData, price: isNaN(val) ? undefined : val});
                   if(errors.price) setErrors({...errors, price: ''});
                 }}
                 className={`w-full bg-gray-900 border rounded px-4 py-2 text-white focus:border-gold-500 outline-none ${errors.price ? 'border-red-500' : 'border-gray-700'}`}
@@ -205,10 +222,10 @@ const CourseEditorModal: React.FC<CourseEditorModalProps> = ({ isOpen, onClose, 
               <input 
                 type="number" 
                 min="0"
-                value={formData.students !== undefined ? formData.students : ''}
+                value={getNumberValue(formData.students)}
                 onChange={e => {
-                  const val = e.target.value === '' ? NaN : parseInt(e.target.value);
-                  setFormData({...formData, students: val});
+                  const val = parseInt(e.target.value);
+                  setFormData({...formData, students: isNaN(val) ? undefined : val});
                   if(errors.students) setErrors({...errors, students: ''});
                 }}
                 className={`w-full bg-gray-900 border rounded px-4 py-2 text-white focus:border-gold-500 outline-none ${errors.students ? 'border-red-500' : 'border-gray-700'}`}
@@ -233,8 +250,7 @@ const CourseEditorModal: React.FC<CourseEditorModalProps> = ({ isOpen, onClose, 
               </div>
               {errors.downloadUrl && <p className="text-red-500 text-xs mt-1">{errors.downloadUrl}</p>}
               <p className="text-[10px] text-gray-500 mt-1">
-                Admin Note: Paste the link to your hosted content (Google Drive, Dropbox, AWS S3, etc). 
-                Students will be able to download this after payment.
+                Admin Note: Paste the link to your hosted content.
               </p>
             </div>
 
