@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { COURSES } from './data/courses';
 import { Course, CourseCategory } from './types';
@@ -7,7 +8,7 @@ import AIAdvisor from './components/AIAdvisor';
 import AdminDashboard from './components/AdminDashboard';
 import AdminLoginModal from './components/AdminLoginModal';
 import AboutUs from './components/AboutUs';
-import { Search, TrendingUp, BookOpen, Globe, LayoutGrid, Menu, X, Crown } from 'lucide-react';
+import { Search, TrendingUp, BookOpen, Globe, LayoutGrid, Menu, X, Crown, Sparkles, ArrowRight } from 'lucide-react';
 
 function App() {
   // --- State Management ---
@@ -43,23 +44,12 @@ function App() {
     localStorage.setItem('digitora_enrolled', JSON.stringify(Array.from(enrolledCourses)));
   }, [enrolledCourses]);
   
-  // Save download counts whenever courses change
-  useEffect(() => {
-    const counts: Record<string, number> = {};
-    allCourses.forEach(c => {
-      // We only want to save the *additional* downloads or the current total
-      // For simplicity, we just won't save the whole course object to avoid desyncing updates
-      // Instead we save a map of ID -> Count
-      // However, to simplify for this demo, we assume user sessions are short-lived or we accept simple persistence
-    });
-    // Simplified: We rely on state for the session.
-  }, [allCourses]);
-
-  
   // Navigation & View State
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [isAdminLoginOpen, setIsAdminLoginOpen] = useState(false);
-  const [currentView, setCurrentView] = useState<'home' | 'about'>('home');
+  
+  // Views: 'home' (Standard Courses), 'about', 'special' (Premium Courses)
+  const [currentView, setCurrentView] = useState<'home' | 'about' | 'special'>('home');
   
   // User View State
   const [selectedCategory, setSelectedCategory] = useState<string>(CourseCategory.CRYPTO);
@@ -68,18 +58,30 @@ function App() {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const categories = Object.values(CourseCategory);
+  // Exclude SPECIAL from standard home tabs to keep it exclusive
+  const categories = Object.values(CourseCategory).filter(cat => cat !== CourseCategory.SPECIAL);
 
   // Filter Logic
   const filteredCourses = useMemo(() => {
     return allCourses.filter(course => {
-      const matchesCategory = course.category === selectedCategory;
+      // Determine which category we are looking for based on View
+      let categoryMatch = false;
+
+      if (currentView === 'special') {
+        // In Special View, ONLY show Special courses
+        categoryMatch = course.category === CourseCategory.SPECIAL;
+      } else if (currentView === 'home') {
+        // In Home View, show selected category (excluding Special)
+        categoryMatch = course.category === selectedCategory;
+      }
+
       const matchesSearch = course.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                             course.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
                             course.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
-      return matchesCategory && matchesSearch;
+      
+      return categoryMatch && matchesSearch;
     });
-  }, [selectedCategory, searchQuery, allCourses]);
+  }, [selectedCategory, searchQuery, allCourses, currentView]);
 
   // --- Handlers ---
 
@@ -98,7 +100,7 @@ function App() {
   };
 
   const handleDownload = (course: Course) => {
-    // Increment download count for the specific course
+    // Increment download count
     setAllCourses(prev => {
       const newCourses = prev.map(c => {
         if (c.id === course.id) {
@@ -107,11 +109,9 @@ function App() {
         return c;
       });
       
-      // Persist the *extra* counts for next reload (simple hack for this demo)
+      // Persist additional counts
       const counts: Record<string, number> = {};
       newCourses.forEach(c => {
-        // Calculate difference from original if possible, or just store current
-        // For this demo, we will calculate the diff from base
         const original = COURSES.find(oc => oc.id === c.id);
         if (original) {
           const diff = (c.downloads || 0) - (original.downloads || 0);
@@ -131,33 +131,25 @@ function App() {
     window.scrollTo(0, 0);
   };
 
-  const handleNavigate = (view: 'home' | 'about', sectionId?: string) => {
+  const handleNavigate = (view: 'home' | 'about' | 'special', sectionId?: string) => {
     setCurrentView(view);
     setIsMobileMenuOpen(false);
     
+    // Reset standard category if going home
     if (view === 'home' && !sectionId) {
        setSelectedCategory(CourseCategory.CRYPTO);
        window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
+    // Scroll handling
     if (sectionId) {
       setTimeout(() => {
         const element = document.getElementById(sectionId);
         if (element) element.scrollIntoView({ behavior: 'smooth' });
       }, 100);
-    } else if (view === 'about') {
+    } else {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
-  };
-
-  const handleSpecialCoursesClick = () => {
-    setCurrentView('home');
-    setSelectedCategory(CourseCategory.SPECIAL);
-    setIsMobileMenuOpen(false);
-    setTimeout(() => {
-      const element = document.getElementById('courses');
-      if(element) element.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
   };
 
   // Admin CRUD Handlers
@@ -205,23 +197,40 @@ function App() {
 
             {/* Desktop Nav */}
             <div className="hidden md:flex items-center space-x-8">
-              <button onClick={() => handleNavigate('home')} className="text-gray-300 hover:text-gold-400 transition-colors">Home</button>
+              <button 
+                onClick={() => handleNavigate('home')} 
+                className={`transition-colors ${currentView === 'home' ? 'text-gold-400' : 'text-gray-300 hover:text-white'}`}
+              >
+                Home
+              </button>
               
-              <button onClick={() => handleNavigate('about')} className="text-gray-300 hover:text-gold-400 transition-colors flex items-center gap-1">
+              <button 
+                onClick={() => handleNavigate('about')} 
+                className={`transition-colors flex items-center gap-1 ${currentView === 'about' ? 'text-gold-400' : 'text-gray-300 hover:text-white'}`}
+              >
                 About Us
               </button>
 
-              <button onClick={() => handleNavigate('home', 'courses')} className="text-gray-300 hover:text-gold-400 transition-colors">Courses</button>
+              <button 
+                onClick={() => handleNavigate('home', 'courses')} 
+                className="text-gray-300 hover:text-white transition-colors"
+              >
+                Courses
+              </button>
               
               <button 
-                onClick={handleSpecialCoursesClick}
-                className="flex items-center gap-2 text-gold-400 hover:text-white transition-all group"
+                onClick={() => handleNavigate('special')}
+                className={`flex items-center gap-2 transition-all group px-3 py-1 rounded-full border ${
+                  currentView === 'special' 
+                    ? 'border-gold-500 bg-gold-500/10 text-gold-400' 
+                    : 'border-transparent hover:border-gold-500/50 text-gold-500'
+                }`}
               >
-                <Crown className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                <Crown className="w-4 h-4" />
                 <span className="font-semibold">Special Courses</span>
               </button>
               
-              <button onClick={() => handleNavigate('home', 'features')} className="text-gray-300 hover:text-gold-400 transition-colors">Why Us</button>
+              <button onClick={() => handleNavigate('home', 'features')} className="text-gray-300 hover:text-white transition-colors">Why Us</button>
               
               <button 
                 onClick={() => setIsAdminLoginOpen(true)}
@@ -247,7 +256,7 @@ function App() {
               <button onClick={() => handleNavigate('home')} className="block w-full text-left px-3 py-2 text-base font-medium text-white hover:text-gold-400">Home</button>
               <button onClick={() => handleNavigate('about')} className="block w-full text-left px-3 py-2 text-base font-medium text-white hover:text-gold-400">About Us</button>
               <button onClick={() => handleNavigate('home', 'courses')} className="block w-full text-left px-3 py-2 text-base font-medium text-white hover:text-gold-400">Courses</button>
-              <button onClick={handleSpecialCoursesClick} className="w-full text-left flex items-center gap-2 px-3 py-2 text-base font-medium text-gold-400 hover:text-white bg-gold-900/10 rounded">
+              <button onClick={() => handleNavigate('special')} className="w-full text-left flex items-center gap-2 px-3 py-2 text-base font-medium text-gold-400 hover:text-white bg-gold-900/10 rounded">
                 <Crown className="w-4 h-4" /> Special Courses
               </button>
               <button onClick={() => handleNavigate('home', 'features')} className="block w-full text-left px-3 py-2 text-base font-medium text-white hover:text-gold-400">Why Us</button>
@@ -262,14 +271,67 @@ function App() {
         )}
       </nav>
 
-      {/* Main Content View Switcher */}
-      {currentView === 'about' ? (
-        <AboutUs />
-      ) : (
-        <>
+      {/* --- Main View Router --- */}
+      
+      {/* 1. ABOUT US PAGE */}
+      {currentView === 'about' && <AboutUs />}
+
+      {/* 2. SPECIAL COURSES PAGE */}
+      {currentView === 'special' && (
+        <div className="animate-fadeIn">
+          {/* Special Header */}
+          <div className="relative pt-32 pb-16 bg-black overflow-hidden border-b border-gold-900/30">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-gold-900/20 via-black to-black" />
+            <div className="max-w-7xl mx-auto px-4 text-center relative z-10">
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gold-500/10 border border-gold-500/50 text-gold-400 text-xs font-bold uppercase tracking-wider mb-6">
+                <Sparkles className="w-3 h-3" /> Premium Collection
+              </div>
+              <h1 className="text-4xl md:text-6xl font-serif font-bold text-white mb-6">
+                Elite Institutional <span className="text-gold-500">Mastery</span>
+              </h1>
+              <p className="max-w-2xl mx-auto text-xl text-gray-400 mb-8">
+                High-ticket, advanced strategies for creating generational wealth. 
+                Includes MEV Bots, Hedge Fund Structuring, and ZK-Rollup Architecture.
+              </p>
+            </div>
+          </div>
+
+          {/* Special Grid */}
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+              <p className="text-gray-400 italic">Showing {filteredCourses.length} Premium Courses</p>
+              <div className="relative w-full md:w-80">
+                <input
+                  type="text"
+                  placeholder="Search premium courses..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-gray-900 border border-gold-900/50 rounded-lg pl-10 pr-4 py-2 text-white focus:outline-none focus:border-gold-500"
+                />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {filteredCourses.map((course) => (
+                <CourseCard 
+                  key={course.id} 
+                  course={course} 
+                  onEnroll={handleEnroll} 
+                  isEnrolled={enrolledCourses.has(course.id)}
+                  onDownload={handleDownload}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. HOME PAGE (Standard Courses) */}
+      {currentView === 'home' && (
+        <div className="animate-fadeIn">
           {/* Hero Section */}
           <div className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden">
-            {/* Background Elements */}
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full max-w-7xl pointer-events-none">
               <div className="absolute top-20 right-0 w-[500px] h-[500px] bg-gold-500/10 rounded-full blur-[100px]" />
               <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-blue-900/10 rounded-full blur-[100px]" />
@@ -294,8 +356,12 @@ function App() {
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-                <a href="#courses" className="px-8 py-4 bg-gold-500 text-black font-bold rounded hover:bg-gold-400 transition-all hover:scale-105 shadow-[0_0_20px_rgba(234,179,8,0.3)]">
-                  Explore {allCourses.length}+ Courses
+                <a 
+                  href="#courses" 
+                  onClick={(e) => { e.preventDefault(); handleNavigate('home', 'courses'); }}
+                  className="px-8 py-4 bg-gold-500 text-black font-bold rounded hover:bg-gold-400 transition-all hover:scale-105 shadow-[0_0_20px_rgba(234,179,8,0.3)]"
+                >
+                  Explore Catalog
                 </a>
                 <button 
                   onClick={() => {
@@ -325,18 +391,16 @@ function App() {
             </div>
           </div>
 
-          {/* Course Section */}
+          {/* Standard Course Section */}
           <section id="courses" className="py-20 bg-black/30">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <div className="flex flex-col md:flex-row justify-between items-end mb-12 gap-6">
                 <div>
                   <h2 className="text-3xl font-serif font-bold text-white mb-4">
-                    {selectedCategory === CourseCategory.SPECIAL ? 'Special Premium Courses' : 'Trending Courses'}
+                    Trending Courses
                   </h2>
                   <p className="text-gray-400">
-                    {selectedCategory === CourseCategory.SPECIAL 
-                      ? 'Advanced hacks, high-level strategies, and institutional knowledge.'
-                      : 'Curated specifically for the 2024-2025 market cycle.'}
+                    Curated strategies specifically for the 2024-2025 market cycle.
                   </p>
                 </div>
                 
@@ -353,7 +417,7 @@ function App() {
                 </div>
               </div>
 
-              {/* Categories */}
+              {/* Categories (Excluding Special) */}
               <div className="flex overflow-x-auto pb-4 gap-2 mb-8 scrollbar-hide">
                 {categories.map((cat) => (
                   <button
@@ -363,9 +427,8 @@ function App() {
                       selectedCategory === cat
                         ? 'bg-gold-500 text-black'
                         : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                    } ${cat === CourseCategory.SPECIAL ? 'border border-gold-500/50' : ''}`}
+                    }`}
                   >
-                    {cat === CourseCategory.SPECIAL && <Crown className="inline w-3 h-3 mr-1 mb-0.5" />}
                     {cat}
                   </button>
                 ))}
@@ -391,6 +454,19 @@ function App() {
                   <p className="text-gray-500">Try adjusting your search or category filters.</p>
                 </div>
               )}
+              
+              {/* Teaser for Special Courses */}
+              <div className="mt-12 p-8 rounded-2xl bg-gradient-to-r from-gray-900 to-black border border-gold-900/50 text-center relative overflow-hidden group">
+                 <div className="absolute inset-0 bg-gold-500/5 group-hover:bg-gold-500/10 transition-colors" />
+                 <h3 className="text-2xl font-serif font-bold text-white mb-2 relative z-10">Looking for Institutional Grade Strategies?</h3>
+                 <p className="text-gray-400 mb-6 relative z-10">Access our exclusive collection of high-ticket courses on MEV Bots, Hedge Funds, and ZK-Rollups.</p>
+                 <button 
+                   onClick={() => handleNavigate('special')}
+                   className="relative z-10 px-6 py-3 border border-gold-500 text-gold-400 font-bold rounded hover:bg-gold-500 hover:text-black transition-all flex items-center gap-2 mx-auto"
+                 >
+                   View Special Courses <ArrowRight className="w-4 h-4" />
+                 </button>
+              </div>
             </div>
           </section>
 
@@ -428,7 +504,7 @@ function App() {
               </div>
             </div>
           </section>
-        </>
+        </div>
       )}
 
       {/* Footer */}
@@ -452,14 +528,14 @@ function App() {
                 <li><button onClick={() => handleNavigate('home', 'courses')} className="hover:text-gold-400">Crypto Fundamentals</button></li>
                 <li><button onClick={() => handleNavigate('home', 'courses')} className="hover:text-gold-400">Forex Trading</button></li>
                 <li><button onClick={() => handleNavigate('home', 'courses')} className="hover:text-gold-400">DeFi Mastery</button></li>
-                <li><button onClick={() => handleNavigate('home', 'courses')} className="hover:text-gold-400">Tokenized Assets</button></li>
+                <li><button onClick={() => handleNavigate('special')} className="hover:text-gold-400">Premium Courses</button></li>
               </ul>
             </div>
             <div>
               <h4 className="font-bold text-white mb-4">Company</h4>
               <ul className="space-y-2 text-gray-400 text-sm">
                 <li><button onClick={() => handleNavigate('about')} className="hover:text-gold-400">About Us</button></li>
-                <li><a href="#" className="hover:text-gold-400">Careers</a></li>
+                <li><button onClick={() => handleNavigate('home', 'features')} className="hover:text-gold-400">Why Us</button></li>
                 <li><a href="#" className="hover:text-gold-400">Privacy Policy</a></li>
                 <li><a href="#" className="hover:text-gold-400">Terms of Service</a></li>
               </ul>
