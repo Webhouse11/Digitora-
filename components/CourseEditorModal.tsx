@@ -65,6 +65,8 @@ const CourseEditorModal: React.FC<CourseEditorModalProps> = ({ isOpen, onClose, 
     // Validate Students
     if (formData.students === undefined || formData.students === null || isNaN(formData.students)) {
        newErrors.students = 'Students count is required';
+    } else if (!Number.isInteger(formData.students)) {
+       newErrors.students = 'Students must be a whole number';
     } else if (formData.students < 0) {
       newErrors.students = 'Students count cannot be negative';
     }
@@ -73,12 +75,12 @@ const CourseEditorModal: React.FC<CourseEditorModalProps> = ({ isOpen, onClose, 
     if (!formData.image) {
       newErrors.image = 'Image URL is required';
     } else if (!urlPattern.test(formData.image)) {
-      newErrors.image = 'Invalid URL (must start with http:// or https://)';
+      newErrors.image = 'Must start with http:// or https://';
     }
 
     // Validate Download URL (Optional)
     if (formData.downloadUrl && !urlPattern.test(formData.downloadUrl)) {
-      newErrors.downloadUrl = 'Invalid URL (must start with http:// or https://)';
+      newErrors.downloadUrl = 'Must start with http:// or https://';
     }
 
     setErrors(newErrors);
@@ -101,10 +103,16 @@ const CourseEditorModal: React.FC<CourseEditorModalProps> = ({ isOpen, onClose, 
     onClose();
   };
 
-  // Helper to safely get number value for input
   const getNumberValue = (val: number | undefined) => {
      if (val === undefined || isNaN(val)) return '';
      return val;
+  };
+
+  // Prevent negative inputs and scientific notation
+  const handleNumberKeyDown = (e: React.KeyboardEvent) => {
+    if (['-', 'e', 'E', '+'].includes(e.key)) {
+      e.preventDefault();
+    }
   };
 
   return (
@@ -206,6 +214,7 @@ const CourseEditorModal: React.FC<CourseEditorModalProps> = ({ isOpen, onClose, 
                 type="number" 
                 min="0"
                 step="0.01"
+                onKeyDown={handleNumberKeyDown}
                 value={getNumberValue(formData.price)}
                 onChange={e => {
                   const val = parseFloat(e.target.value);
@@ -222,6 +231,7 @@ const CourseEditorModal: React.FC<CourseEditorModalProps> = ({ isOpen, onClose, 
               <input 
                 type="number" 
                 min="0"
+                onKeyDown={handleNumberKeyDown}
                 value={getNumberValue(formData.students)}
                 onChange={e => {
                   const val = parseInt(e.target.value);
