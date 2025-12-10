@@ -24,8 +24,10 @@ const CourseEditorModal: React.FC<CourseEditorModalProps> = ({ isOpen, onClose, 
   });
 
   const [tagsInput, setTagsInput] = useState('');
+  const [errors, setErrors] = useState<{[key: string]: string}>({});
 
   useEffect(() => {
+    setErrors({});
     if (initialData) {
       setFormData(initialData);
       setTagsInput(initialData.tags.join(', '));
@@ -49,8 +51,41 @@ const CourseEditorModal: React.FC<CourseEditorModalProps> = ({ isOpen, onClose, 
 
   if (!isOpen) return null;
 
+  const validate = (): boolean => {
+    const newErrors: {[key: string]: string} = {};
+    const urlPattern = /^(https?:\/\/)/i;
+
+    // Validate Price
+    if (formData.price === undefined || isNaN(formData.price) || formData.price < 0) {
+      newErrors.price = 'Price must be a valid non-negative number';
+    }
+
+    // Validate Students
+    if (formData.students === undefined || isNaN(formData.students) || formData.students < 0) {
+      newErrors.students = 'Students count must be a valid non-negative number';
+    }
+
+    // Validate Image URL (Required)
+    if (!formData.image || !urlPattern.test(formData.image)) {
+      newErrors.image = 'Invalid URL (must start with http:// or https://)';
+    }
+
+    // Validate Download URL (Optional)
+    if (formData.downloadUrl && !urlPattern.test(formData.downloadUrl)) {
+      newErrors.downloadUrl = 'Invalid URL (must start with http:// or https://)';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!validate()) {
+      return;
+    }
+
     const courseToSave = {
       ...formData,
       tags: tagsInput.split(',').map(t => t.trim()).filter(Boolean)
@@ -79,18 +114,24 @@ const CourseEditorModal: React.FC<CourseEditorModalProps> = ({ isOpen, onClose, 
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           {/* Image Preview */}
-          <div className="relative h-48 w-full rounded-lg overflow-hidden bg-gray-900 border border-gray-700 group">
-            <img src={formData.image} alt="Preview" className="w-full h-full object-cover opacity-60" />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <ImageIcon className="w-8 h-8 text-gray-500" />
+          <div>
+            <div className={`relative h-48 w-full rounded-lg overflow-hidden bg-gray-900 border group ${errors.image ? 'border-red-500' : 'border-gray-700'}`}>
+              <img src={formData.image} alt="Preview" className="w-full h-full object-cover opacity-60" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <ImageIcon className="w-8 h-8 text-gray-500" />
+              </div>
+              <input 
+                type="text"
+                value={formData.image || ''}
+                onChange={e => {
+                  setFormData({...formData, image: e.target.value});
+                  if(errors.image) setErrors({...errors, image: ''});
+                }}
+                placeholder="Image URL"
+                className="absolute bottom-4 left-4 right-4 bg-black/70 border border-gray-600 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-gold-500"
+              />
             </div>
-            <input 
-              type="text"
-              value={formData.image}
-              onChange={e => setFormData({...formData, image: e.target.value})}
-              placeholder="Image URL"
-              className="absolute bottom-4 left-4 right-4 bg-black/70 border border-gray-600 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-gold-500"
-            />
+            {errors.image && <p className="text-red-500 text-xs mt-1">{errors.image}</p>}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -148,34 +189,49 @@ const CourseEditorModal: React.FC<CourseEditorModalProps> = ({ isOpen, onClose, 
                 type="number" 
                 min="0"
                 step="0.01"
-                value={formData.price}
-                onChange={e => setFormData({...formData, price: parseFloat(e.target.value)})}
-                className="w-full bg-gray-900 border border-gray-700 rounded px-4 py-2 text-white focus:border-gold-500 outline-none"
+                value={formData.price !== undefined ? formData.price : ''}
+                onChange={e => {
+                  const val = e.target.value === '' ? NaN : parseFloat(e.target.value);
+                  setFormData({...formData, price: val});
+                  if(errors.price) setErrors({...errors, price: ''});
+                }}
+                className={`w-full bg-gray-900 border rounded px-4 py-2 text-white focus:border-gold-500 outline-none ${errors.price ? 'border-red-500' : 'border-gray-700'}`}
               />
+              {errors.price && <p className="text-red-500 text-xs mt-1">{errors.price}</p>}
             </div>
 
             <div>
               <label className="block text-xs text-gray-400 mb-1">Students Enrolled</label>
               <input 
                 type="number" 
-                value={formData.students}
-                onChange={e => setFormData({...formData, students: parseInt(e.target.value)})}
-                className="w-full bg-gray-900 border border-gray-700 rounded px-4 py-2 text-white focus:border-gold-500 outline-none"
+                min="0"
+                value={formData.students !== undefined ? formData.students : ''}
+                onChange={e => {
+                  const val = e.target.value === '' ? NaN : parseInt(e.target.value);
+                  setFormData({...formData, students: val});
+                  if(errors.students) setErrors({...errors, students: ''});
+                }}
+                className={`w-full bg-gray-900 border rounded px-4 py-2 text-white focus:border-gold-500 outline-none ${errors.students ? 'border-red-500' : 'border-gray-700'}`}
               />
+              {errors.students && <p className="text-red-500 text-xs mt-1">{errors.students}</p>}
             </div>
 
              <div className="col-span-2">
               <label className="block text-xs text-gray-400 mb-1">Course Material URL (Download Link)</label>
               <div className="relative">
-                <Link className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                <Link className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${errors.downloadUrl ? 'text-red-500' : 'text-gray-500'}`} />
                 <input 
                   type="text" 
                   value={formData.downloadUrl || ''}
-                  onChange={e => setFormData({...formData, downloadUrl: e.target.value})}
+                  onChange={e => {
+                    setFormData({...formData, downloadUrl: e.target.value});
+                    if(errors.downloadUrl) setErrors({...errors, downloadUrl: ''});
+                  }}
                   placeholder="https://dropbox.com/..."
-                  className="w-full bg-gray-900 border border-gray-700 rounded pl-10 pr-4 py-2 text-white focus:border-gold-500 outline-none"
+                  className={`w-full bg-gray-900 border rounded pl-10 pr-4 py-2 text-white focus:border-gold-500 outline-none ${errors.downloadUrl ? 'border-red-500' : 'border-gray-700'}`}
                 />
               </div>
+              {errors.downloadUrl && <p className="text-red-500 text-xs mt-1">{errors.downloadUrl}</p>}
               <p className="text-[10px] text-gray-500 mt-1">
                 Admin Note: Paste the link to your hosted content (Google Drive, Dropbox, AWS S3, etc). 
                 Students will be able to download this after payment.
