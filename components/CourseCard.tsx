@@ -64,17 +64,17 @@ const CourseCard: React.FC<CourseCardProps> = ({ course, onEnroll, isEnrolled, o
 
         {/* Meta Stats */}
         <div className="flex items-center justify-between text-gray-500 text-xs mb-4 pt-4 border-t border-gray-800">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center">
-              <Users className="w-3 h-3 mr-1" />
-              {course.students.toLocaleString()}
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-1.5" title="Enrolled Students">
+              <Users className="w-3 h-3 text-blue-400" />
+              <span>{course.students.toLocaleString()} Students</span>
             </div>
-            <div className="flex items-center" title="Total Downloads">
-              <Download className="w-3 h-3 mr-1" />
-              {course.downloads?.toLocaleString() || 0}
+            <div className="flex items-center gap-1.5" title="Total Downloads">
+              <Download className="w-3 h-3 text-gold-500" />
+              <span className="text-gray-300 font-medium">{course.downloads?.toLocaleString() || 0} Downloads</span>
             </div>
           </div>
-          <div className={`font-bold text-lg ${isEnrolled ? 'text-green-400' : 'text-white'}`}>
+          <div className={`font-bold text-lg self-end ${isEnrolled ? 'text-green-400' : 'text-white'}`}>
             {isEnrolled ? 'Owned' : `$${course.price}`}
           </div>
         </div>

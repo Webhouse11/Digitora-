@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { COURSES } from './data/courses';
 import { Course, CourseCategory } from './types';
 import CourseCard from './components/CourseCard';
@@ -7,15 +7,54 @@ import AIAdvisor from './components/AIAdvisor';
 import AdminDashboard from './components/AdminDashboard';
 import AdminLoginModal from './components/AdminLoginModal';
 import AboutUs from './components/AboutUs';
-import { Search, TrendingUp, BookOpen, Globe, LayoutGrid, Menu, X, Crown, Info, Home } from 'lucide-react';
+import { Search, TrendingUp, BookOpen, Globe, LayoutGrid, Menu, X, Crown } from 'lucide-react';
 
 function App() {
   // --- State Management ---
-  // Using State for courses allows realtime editing in the Admin Dashboard
-  const [allCourses, setAllCourses] = useState<Course[]>(COURSES);
   
-  // Track Purchased Courses (Enrolled)
-  const [enrolledCourses, setEnrolledCourses] = useState<Set<string>>(new Set());
+  // Load initial courses. If we have saved download counts in localStorage, merge them.
+  const [allCourses, setAllCourses] = useState<Course[]>(() => {
+    try {
+      const savedCounts = localStorage.getItem('digitora_download_counts');
+      const counts = savedCounts ? JSON.parse(savedCounts) : {};
+      
+      // Merge static data with saved counts
+      return COURSES.map(c => ({
+        ...c,
+        downloads: (c.downloads || 0) + (counts[c.id] || 0)
+      }));
+    } catch (e) {
+      return COURSES;
+    }
+  });
+  
+  // Track Purchased Courses (Enrolled) with persistence
+  const [enrolledCourses, setEnrolledCourses] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('digitora_enrolled');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch (e) {
+      return new Set();
+    }
+  });
+
+  // Save enrolled courses whenever they change
+  useEffect(() => {
+    localStorage.setItem('digitora_enrolled', JSON.stringify(Array.from(enrolledCourses)));
+  }, [enrolledCourses]);
+  
+  // Save download counts whenever courses change
+  useEffect(() => {
+    const counts: Record<string, number> = {};
+    allCourses.forEach(c => {
+      // We only want to save the *additional* downloads or the current total
+      // For simplicity, we just won't save the whole course object to avoid desyncing updates
+      // Instead we save a map of ID -> Count
+      // However, to simplify for this demo, we assume user sessions are short-lived or we accept simple persistence
+    });
+    // Simplified: We rely on state for the session.
+  }, [allCourses]);
+
   
   // Navigation & View State
   const [isAdminMode, setIsAdminMode] = useState(false);
@@ -23,20 +62,17 @@ function App() {
   const [currentView, setCurrentView] = useState<'home' | 'about'>('home');
   
   // User View State
-  // Default to CRYPTO instead of 'All'
   const [selectedCategory, setSelectedCategory] = useState<string>(CourseCategory.CRYPTO);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Removed 'All' from the list. Logic ensures Crypto is first, then Forex, etc. based on Enum order.
   const categories = Object.values(CourseCategory);
 
   // Filter Logic
   const filteredCourses = useMemo(() => {
     return allCourses.filter(course => {
-      // Strict category matching since 'All' is removed
       const matchesCategory = course.category === selectedCategory;
       const matchesSearch = course.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                             course.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -53,20 +89,39 @@ function App() {
   };
 
   const handlePaymentSuccess = (courseId: string) => {
-    // Add the course ID to the enrolled set
-    setEnrolledCourses(prev => new Set(prev).add(courseId));
-    // Optional: Show a success toast or alert
+    setEnrolledCourses(prev => {
+      const newSet = new Set(prev);
+      newSet.add(courseId);
+      return newSet;
+    });
     alert("Payment Successful! Course material is now available for download.");
   };
 
   const handleDownload = (course: Course) => {
     // Increment download count for the specific course
-    setAllCourses(prev => prev.map(c => {
-      if (c.id === course.id) {
-        return { ...c, downloads: (c.downloads || 0) + 1 };
-      }
-      return c;
-    }));
+    setAllCourses(prev => {
+      const newCourses = prev.map(c => {
+        if (c.id === course.id) {
+          return { ...c, downloads: (c.downloads || 0) + 1 };
+        }
+        return c;
+      });
+      
+      // Persist the *extra* counts for next reload (simple hack for this demo)
+      const counts: Record<string, number> = {};
+      newCourses.forEach(c => {
+        // Calculate difference from original if possible, or just store current
+        // For this demo, we will calculate the diff from base
+        const original = COURSES.find(oc => oc.id === c.id);
+        if (original) {
+          const diff = (c.downloads || 0) - (original.downloads || 0);
+          if (diff > 0) counts[c.id] = diff;
+        }
+      });
+      localStorage.setItem('digitora_download_counts', JSON.stringify(counts));
+      
+      return newCourses;
+    });
   };
 
   const handleAdminLogin = () => {
@@ -80,13 +135,11 @@ function App() {
     setCurrentView(view);
     setIsMobileMenuOpen(false);
     
-    // Reset category to CRYPTO if going home without specific section
     if (view === 'home' && !sectionId) {
        setSelectedCategory(CourseCategory.CRYPTO);
        window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
-    // Handle scroll to section if specified
     if (sectionId) {
       setTimeout(() => {
         const element = document.getElementById(sectionId);
